@@ -72,39 +72,24 @@ public class SuscripcionServlet extends HttpServlet {
 
   private void registrarSuscripcion(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
     try {
-      int idUsuario = Integer.parseInt(request.getParameter("idUsuario"));
-      int diasVigencia = Integer.parseInt(request.getParameter("diasVigencia"));
-      String tipoParam = request.getParameter("tipo");
+      // 1. Delegamos la creación del objeto a nuestra función mapeadora
+      Suscripcion nuevaSuscripcion = mapearSuscripcionDesdeRequest(request);
 
-      TipoSuscripcion tipo = TipoSuscripcion.valueOf(tipoParam.toUpperCase());
-      Suscripcion nuevaSuscripcion = null;
-
-      switch (tipo) {
-        case ESTANDAR:
-          nuevaSuscripcion = new SuscripcionEstandar(idUsuario, diasVigencia);
-          break;
-        case PREMIUM:
-          nuevaSuscripcion = new SuscripcionPremium(idUsuario, diasVigencia);
-          break;
-        case FAMILIAR:
-          // El parseInt solo se ejecuta si eligen FAMILIAR, evitando errores si está vacío en los otros planes
-          int pin = Integer.parseInt(request.getParameter("pinAcceso"));
-          nuevaSuscripcion = new SuscripcionFamiliar(idUsuario, diasVigencia, pin);
-          break;
-      }
-
+      // 2. Insertamos en la base de datos
       if (nuevaSuscripcion != null) {
         dao.insert(nuevaSuscripcion);
       }
 
-      // CORRECCIÓN: Redirección segura usando el Context Path
+      // 3. Redirigimos al éxito
       response.sendRedirect(request.getContextPath() + "/SuscripcionServlet?accion=visualizarTodas&exito=1");
 
     } catch (PinInvalidoException e) {
+      // Manejo del error de PIN
       request.setAttribute("error", e.getMessage());
       request.getRequestDispatcher("/WEB-INF/vistas/formularioSuscripcion.jsp").forward(request, response);
 
     } catch (NumberFormatException e) {
+      // Manejo del error de campos vacíos o letras
       request.setAttribute("error", "Error: Los campos numéricos son obligatorios y deben tener un formato válido.");
       request.getRequestDispatcher("/WEB-INF/vistas/formularioSuscripcion.jsp").forward(request, response);
     }
@@ -119,7 +104,6 @@ public class SuscripcionServlet extends HttpServlet {
       request.getRequestDispatcher("/WEB-INF/vistas/suscripciones.jsp").forward(request, response);
 
     } catch (NumberFormatException e) {
-      // CORRECCIÓN: Redirección segura usando el Context Path
       response.sendRedirect(request.getContextPath() + "/SuscripcionServlet?accion=visualizarTodas&error_busqueda=1");
     }
   }
@@ -130,4 +114,26 @@ public class SuscripcionServlet extends HttpServlet {
     request.setAttribute("mapaSuscripciones", mapa);
     request.getRequestDispatcher("/WEB-INF/vistas/suscripcionesAgrupadas.jsp").forward(request, response);
   }
+
+  private Suscripcion mapearSuscripcionDesdeRequest(HttpServletRequest request) throws PinInvalidoException, NumberFormatException {
+    int idUsuario = Integer.parseInt(request.getParameter("idUsuario"));
+    int diasVigencia = Integer.parseInt(request.getParameter("diasVigencia"));
+    String tipoParam = request.getParameter("tipo");
+
+    TipoSuscripcion tipo = TipoSuscripcion.valueOf(tipoParam.toUpperCase());
+
+    switch (tipo) {
+      case ESTANDAR:
+        return new SuscripcionEstandar(idUsuario, diasVigencia);
+      case PREMIUM:
+        return new SuscripcionPremium(idUsuario, diasVigencia);
+      case FAMILIAR:
+        // El parseInt solo se ejecuta si eligen FAMILIAR
+        int pin = Integer.parseInt(request.getParameter("pinAcceso"));
+        return new SuscripcionFamiliar(idUsuario, diasVigencia, pin);
+      default:
+        return null;
+    }
+  }
+
 }
